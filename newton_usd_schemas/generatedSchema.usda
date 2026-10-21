@@ -1516,6 +1516,8 @@ class NewtonActuator "NewtonActuator" (
 
     Actuator command input delay can be included by applying `NewtonActuatorDelayAPI`. This is useful to model actuator communication or processing lag.
 
+    Joint position sensing on the link side of a backlash joint can be included by applying `NewtonActuatorBacklashAPI`.
+
     Additional effort clamping behaviors can be added by applying any number of `NewtonActuatorClampingBaseAPI`
     derived schemas (e.g. `NewtonMaxEffortClampingAPI`). The order of clamping is not guaranteed to be preserved thus
     clamping operations must be order independent.
@@ -1541,7 +1543,89 @@ class NewtonActuator "NewtonActuator" (
     )
 }
 
+class NewtonBattery "NewtonBattery" (
+    doc = """Defines a battery shared by the actuators of one or more joints.
+
+    EXPERIMENTAL: The Newton actuator schema family is provisional. Attribute names,
+    defaults, and composition rules may change without notice in subsequent releases.
+
+    The supply voltage sags with the total effort (i.e. force/torque for linear/rotational
+    actuators) on the joints listed in `newton:joints`:
+
+        `voltage = max(nominalVoltage - sagGain * sum(|effort|), minVoltage)`
+
+    Control laws that read a supply voltage (e.g. `NewtonBAMControlAPI`) use it instead of
+    their own supply voltage. A joint should be listed by at most one battery.
+    """
+)
+{
+    rel newton:joints (
+        doc = """The joints that draw from this battery.
+
+        Each target must identify a `PhysicsRevoluteJoint` or `PhysicsPrismaticJoint`.
+        """
+    )
+
+    float newton:nominalVoltage (
+        doc = """Supply voltage without load.
+
+        Must be authored. Parsers should raise an error if it is missing.
+
+        Range: [minVoltage, inf)
+        Units: volt"""
+        limits = {
+            dictionary hard = {
+                float minimum = 0
+            }
+        }
+    )
+
+    float newton:sagGain = 0 (
+        doc = """Voltage drop per unit of total effort (in joint space).
+
+        Range: [0, inf)
+        Units: volt / force or volt / torque"""
+        limits = {
+            dictionary hard = {
+                float minimum = 0
+            }
+        }
+    )
+
+    float newton:minVoltage (
+        doc = """Lower bound of the sagged supply voltage.
+
+        Must be authored. Parsers should raise an error if it is missing.
+
+        Range: (0, nominalVoltage]
+        Units: volt"""
+        limits = {
+            dictionary hard = {
+                float minimum = 0
+            }
+        }
+    )
+}
+
+class NewtonActuatorInputProcessorBaseAPI "NewtonActuatorInputProcessorBaseAPI" (
+    doc = """Base API for all actuator input processors.
+
+    Input processors transform the inputs of the control law, such as the commanded inputs
+    (e.g. `NewtonActuatorDelayAPI`) or the sensed joint state (e.g.
+    `NewtonActuatorBacklashAPI`), before the control law computes the actuator output effort.
+    Any number of input processors may be applied to a `NewtonActuator`. They run in the
+    order in which they are listed in the prim's `apiSchemas`.
+
+    Applying any input processor API automatically applies this base. Check
+    `prim.HasAPI('NewtonActuatorInputProcessorBaseAPI')` to detect whether any input
+    processor is present.
+    """
+)
+{
+}
+
 class NewtonActuatorDelayAPI "NewtonActuatorDelayAPI" (
+    apiSchemas = ["NewtonActuatorInputProcessorBaseAPI"]
     doc = """Adds command input delay to an actuator to model communication or processing lag.
 
     Command inputs such as control targets and feedforward terms are delayed by the specified
@@ -1566,6 +1650,33 @@ class NewtonActuatorDelayAPI "NewtonActuatorDelayAPI" (
                 int minimum = 0
             }
         }
+    )
+}
+
+class NewtonActuatorBacklashAPI "NewtonActuatorBacklashAPI" (
+    apiSchemas = ["NewtonActuatorInputProcessorBaseAPI"]
+    doc = """Senses the actuated joint position on the link side of a backlash joint.
+
+    The backlash itself is modeled in the physics: a passive single-DOF joint with a small
+    motion range sits in series between the actuated joint and the link. The simulation
+    handles the dead zone, where the actuator effort does not reach the link.
+
+    This API models an encoder on the link side of that joint. The control law reads the
+    position `q = q_actuated + q_backlash` instead of the actuated joint position alone.
+    The velocity is still that of the actuated joint.
+    """
+)
+{
+    rel newton:backlashJoint (
+        doc = """The passive backlash joint in series with the actuated joint.
+
+        The relationship must be authored. Parsers should raise an error if no target
+        is provided.
+
+        Only the first target is honored, and it must identify either a
+        `PhysicsRevoluteJoint` or `PhysicsPrismaticJoint`, matching the type of the
+        actuated joint.
+        """
     )
 }
 
@@ -1723,6 +1834,106 @@ class NewtonNeuralControlAPI "NewtonNeuralControlAPI" (
 {
     asset newton:modelPath (
         doc = """Path to the pre-trained neural model file (e.g. TorchScript .pt)."""
+    )
+}
+
+class NewtonBAMControlAPI "NewtonBAMControlAPI" (
+    apiSchemas = ["NewtonActuatorControlBaseAPI"]
+    doc = """Servo controller from BAM (Better Actuator Models), without friction.
+
+    Models the servo firmware and the DC motor of an identified BAM fit:
+
+        `duty = clamp(kp*(target_pos - q), -maxPwm, maxPwm)`
+        `current = (vin*duty - kt*v) / resistance`
+        `effort = kt*current`
+
+    When `newton:maxCurrent` is positive, the firmware narrows the duty cycle towards the
+    current limit before the `newton:maxPwm` clamp. The `newton:maxPwm` clamp is applied
+    last, so at high velocity the back-EMF term can still drive the current above
+    `newton:maxCurrent`.
+
+    Target velocity and feedforward terms are ignored, since the modeled firmware has no
+    effort input. Gearbox friction is not part of this control law.
+
+    `newton:kp`, `newton:kt`, `newton:resistance`, `newton:vin` and `newton:maxPwm`
+    have no fallback values and must be authored. Parsers should raise an error if any
+    of them is missing.
+    """
+)
+{
+    float newton:kp (
+        doc = """Duty cycle per position error (in joint space).
+
+        Range: [0, inf)
+        Units: 1 / distance or 1 / radians"""
+        limits = {
+            dictionary hard = {
+                float minimum = 0
+            }
+        }
+    )
+
+    float newton:kt (
+        doc = """Motor torque constant (in joint space).
+
+        Range: (0, inf)
+        Units: force / ampere or torque / ampere"""
+        limits = {
+            dictionary hard = {
+                float minimum = 0
+            }
+        }
+    )
+
+    float newton:resistance (
+        doc = """Motor winding resistance.
+
+        Range: (0, inf)
+        Units: ohm"""
+        limits = {
+            dictionary hard = {
+                float minimum = 0
+            }
+        }
+    )
+
+    float newton:vin (
+        doc = """Supply voltage.
+
+        Range: [0, inf)
+        Units: volt"""
+        limits = {
+            dictionary hard = {
+                float minimum = 0
+            }
+        }
+    )
+
+    float newton:maxPwm (
+        doc = """Largest duty cycle magnitude.
+
+        Range: [0, 1]
+        Units: dimensionless"""
+        limits = {
+            dictionary hard = {
+                float minimum = 0
+                float maximum = 1
+            }
+        }
+    )
+
+    float newton:maxCurrent = 0 (
+        doc = """Firmware current limit.
+
+        A value of 0 disables the current limit.
+
+        Range: [0, inf)
+        Units: ampere"""
+        limits = {
+            dictionary hard = {
+                float minimum = 0
+            }
+        }
     )
 }
 
