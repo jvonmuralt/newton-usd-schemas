@@ -1544,10 +1544,13 @@ class NewtonActuator "NewtonActuator" (
     rel newton:battery (
         doc = """The battery this actuator draws from.
 
-        Optional. When authored, it must have a single target, which must identify a
-        `NewtonBattery`; if more targets are authored, only the first is honored. Control laws
-        that read a supply voltage (e.g. `NewtonBAMControlAPI`) use the battery's sagged voltage
-        instead of their own supply voltage.
+        The relationship is optional. Only the first target is honored, and it must
+        identify a `NewtonBattery`.
+
+        Only actuators whose control law models the current it draws from the battery (e.g.
+        `NewtonBAMControlAPI`) may target a battery. Parsers should raise an error for other
+        actuators that target one. Such control laws use the battery's voltage instead of their
+        own supply voltage.
         """
     )
 }
@@ -1574,7 +1577,7 @@ class NewtonBattery "NewtonBattery" (
     the simulation, excluding other forces on the joint. It is signed: a regenerating
     actuator returns current and offsets the others, but the voltage never rises above
     `newton:nominalVoltage`. Only actuators whose control law models this current can draw
-    from a battery; parsers should raise an error for other actuators that target one.
+    from a battery (see `newton:battery` on `NewtonActuator`).
 
     The voltage is not updated by the actuators themselves: consumers update it once per
     step, after the actuators have stepped, so the voltage used at a step is computed from
@@ -1585,9 +1588,10 @@ class NewtonBattery "NewtonBattery" (
     float newton:nominalVoltage (
         doc = """Supply voltage without load.
 
-        Must be authored. Parsers should raise an error if it is missing.
+        Must be authored. Parsers should raise an error if it is missing. Must not be less than
+        `newton:minVoltage`.
 
-        Range: [minVoltage, inf)
+        Range: [0, inf)
         Units: volt"""
         limits = {
             dictionary hard = {
@@ -1611,7 +1615,9 @@ class NewtonBattery "NewtonBattery" (
     float newton:minVoltage = 0 (
         doc = """Lower bound of the supply voltage under load.
 
-        Range: [0, nominalVoltage]
+        Must not exceed `newton:nominalVoltage`.
+
+        Range: [0, inf)
         Units: volt"""
         limits = {
             dictionary hard = {
@@ -1857,10 +1863,10 @@ class NewtonBAMControlAPI "NewtonBAMControlAPI" (
     apiSchemas = ["NewtonActuatorControlBaseAPI"]
     doc = """Servo controller from BAM (Better Actuator Models), without friction.
 
-    BAM identifies servo models from measurements, see [Rhoban/bam](https://github.com/Rhoban/bam)
-    and the ICRA 2025 paper "Extended Friction Models for the Physics Simulation of Servo
-    Actuators". This control law models the servo firmware and the DC motor of an
-    identified BAM fit:
+    This control law follows the voltage-controlled servo model of the
+    [Rhoban/bam](https://github.com/Rhoban/bam) library, whose identified fits are described in
+    the ICRA 2025 paper "Extended Friction Models for the Physics Simulation of Servo
+    Actuators". It models the servo firmware and the DC motor:
 
         `duty = kp*(target_pos - q)`
         `current = (vin*duty - kt*v) / resistance`
@@ -1876,12 +1882,17 @@ class NewtonBAMControlAPI "NewtonBAMControlAPI" (
 
     `vin` is the supply voltage: `newton:vin`, or the voltage of the `NewtonBattery` the
     actuator draws from. The actuator then draws the current `duty * effort / kt` from the
-    battery, with the effort it applies to the simulation. For a BAM fit, `newton:kp` is the
-    firmware gain times the fit's error gain, and the other attributes are the fit's
-    parameters of the same name.
+    battery, with the effort it applies to the simulation.
+
+    For a BAM fit, `newton:kt` and `newton:resistance` are the fit's `kt` and `R`, and
+    `newton:kp` is the firmware gain times the servo model's error gain. `newton:vin`,
+    `newton:maxPwm` and `newton:maxCurrent` are the supply voltage and the firmware limits of
+    the servo, not fitted values. The rest of a fit is modeled outside this control law: its
+    armature on the actuated joint, its command delay with `NewtonActuatorDelayAPI`, and its
+    friction not at all. BAM's current-controlled servo models are not covered.
 
     Target velocity and feedforward terms are ignored, since the modeled firmware has no
-    effort input. Gearbox friction is not part of this control law.
+    effort input.
 
     `newton:kt` and `newton:resistance` have no fallback values and must be authored, as
     must `newton:vin` unless the actuator draws from a `NewtonBattery`. Parsers should raise
@@ -1928,8 +1939,8 @@ class NewtonBAMControlAPI "NewtonBAMControlAPI" (
     float newton:vin (
         doc = """Supply voltage.
 
-        Ignored when the actuator draws from a `NewtonBattery`, which provides its sagged
-        voltage instead.
+        Ignored when the actuator draws from a `NewtonBattery`, which provides its voltage
+        instead.
 
         Range: [0, inf)
         Units: volt"""
@@ -1943,7 +1954,7 @@ class NewtonBAMControlAPI "NewtonBAMControlAPI" (
     float newton:maxPwm = 1 (
         doc = """Largest duty cycle magnitude.
 
-        A value of 1 disables the duty cycle limit.
+        A value of 1 allows the full duty cycle.
 
         Range: [0, 1]
         Units: dimensionless"""
