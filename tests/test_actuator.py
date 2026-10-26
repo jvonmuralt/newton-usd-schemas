@@ -65,23 +65,36 @@ class TestNewtonActuator(unittest.TestCase):
 
 
 class TestNewtonBattery(unittest.TestCase):
-    def setUp(self):
-        self.stage: Usd.Stage = Usd.Stage.CreateInMemory()
-        self.prim: Usd.Prim = self.stage.DefinePrim("/Battery", "NewtonBattery")
-
     def test_typed_schema_registered(self):
         plug_type = Plug.Registry().FindTypeByName("NewtonPhysicsBattery")
         self.assertEqual(plug_type.typeName, "NewtonPhysicsBattery")
         schema_type = Usd.SchemaRegistry().GetSchemaTypeName("NewtonPhysicsBattery")
         self.assertEqual(schema_type, "NewtonBattery")
 
+    def test_abstract(self):
+        self.assertEqual(Usd.SchemaRegistry().GetSchemaKind("NewtonBattery"), Usd.SchemaKind.AbstractTyped)
+        self.assertIsNone(Usd.SchemaRegistry().FindConcretePrimDefinition("NewtonBattery"))
+
+
+class TestNewtonInternalResistanceBattery(unittest.TestCase):
+    def setUp(self):
+        self.stage: Usd.Stage = Usd.Stage.CreateInMemory()
+        self.prim: Usd.Prim = self.stage.DefinePrim("/Battery", "NewtonInternalResistanceBattery")
+
+    def test_typed_schema_registered(self):
+        plug_type = Plug.Registry().FindTypeByName("NewtonPhysicsInternalResistanceBattery")
+        self.assertEqual(plug_type.typeName, "NewtonPhysicsInternalResistanceBattery")
+        schema_type = Usd.SchemaRegistry().GetSchemaTypeName("NewtonPhysicsInternalResistanceBattery")
+        self.assertEqual(schema_type, "NewtonInternalResistanceBattery")
+
     def test_prim_is_battery(self):
-        self.assertEqual(self.prim.GetTypeName(), "NewtonBattery")
+        self.assertEqual(self.prim.GetTypeName(), "NewtonInternalResistanceBattery")
         self.assertTrue(self.prim.IsValid())
+        self.assertTrue(self.prim.IsA("NewtonBattery"))
 
     def test_not_imageable(self):
         self.assertFalse(self.prim.IsA(UsdGeom.Imageable))
-        definition = Usd.SchemaRegistry().FindConcretePrimDefinition("NewtonBattery")
+        definition = Usd.SchemaRegistry().FindConcretePrimDefinition("NewtonInternalResistanceBattery")
         self.assertIsNotNone(definition)
         self.assertEqual(
             sorted(definition.GetPropertyNames()),
@@ -90,11 +103,11 @@ class TestNewtonBattery(unittest.TestCase):
 
     def test_bbox_cache_skips_battery(self):
         root = self.stage.DefinePrim("/World", "Xform")
-        self.stage.DefinePrim("/World/Battery", "NewtonBattery")
+        self.stage.DefinePrim("/World/Battery", "NewtonInternalResistanceBattery")
         cache = UsdGeom.BBoxCache(Usd.TimeCode.Default(), [UsdGeom.Tokens.default_])
         self.assertTrue(cache.ComputeWorldBound(root).GetRange().IsEmpty())
 
-    def test_voltages(self):
+    def test_attributes(self):
         for name, fallback, value in (("nominalVoltage", None, 12.0), ("resistance", 0.0, 0.5), ("minVoltage", 0.0, 9.0)):
             with self.subTest(name=name):
                 attr = self.prim.GetAttribute(f"newton:{name}")

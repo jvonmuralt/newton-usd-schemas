@@ -1545,29 +1545,40 @@ class NewtonActuator "NewtonActuator" (
         doc = """The battery this actuator draws from.
 
         The relationship is optional. Only the first target is honored, and it must
-        identify a `NewtonBattery`.
-
-        Only actuators whose control law models the current it draws from the battery (e.g.
-        `NewtonBAMControlAPI`) may target a battery. Parsers should raise an error for other
-        actuators that target one. Such control laws use the battery's voltage instead of their
-        own supply voltage.
+        identify a prim derived from `NewtonBattery` (e.g. `NewtonInternalResistanceBattery`).
+        The battery type defines which actuators may target it.
         """
     )
 }
 
-class NewtonBattery "NewtonBattery" (
-    doc = """Defines a battery shared by one or more actuators.
+class "NewtonBattery" (
+    doc = """Base class for all batteries shared by one or more actuators.
 
     EXPERIMENTAL: The Newton actuator schema family is provisional. Attribute names,
     defaults, and composition rules may change without notice in subsequent releases.
 
-    An actuator draws from a battery by targeting it with its `newton:battery` relationship.
-    Control laws that read a supply voltage (e.g. `NewtonBAMControlAPI`) use the battery's
-    voltage instead of their own supply voltage.
+    A battery is defined by a prim of a concrete type derived from `NewtonBattery` (e.g.
+    `NewtonInternalResistanceBattery`), which determines the battery model.
 
-    The battery is an ideal voltage source behind a resistance, as in
-    [BAM](https://github.com/Rhoban/bam). Its voltage drops with the total current of the
-    actuators that draw from it:
+    An actuator draws from a battery by targeting it with its `newton:battery` relationship.
+    The battery type defines how the battery affects its actuators and which actuators may
+    draw from it.
+    """
+)
+{
+}
+
+class NewtonInternalResistanceBattery "NewtonInternalResistanceBattery" (
+    doc = """Battery modeled as an ideal voltage source behind an internal resistance.
+
+    The battery provides the supply voltage of its actuators: control laws that read a supply
+    voltage (e.g. `NewtonBAMControlAPI`) use the battery's voltage instead of their own.
+    Only actuators whose control law models the current it draws from the battery (e.g.
+    `NewtonBAMControlAPI`) may draw from this battery. Parsers should raise an error for
+    other actuators that target one.
+
+    As in [BAM](https://github.com/Rhoban/bam), the voltage drops with the total current of
+    the actuators that draw from the battery:
 
         `voltage = max(nominalVoltage - resistance * max(0, sum(current)), minVoltage)`
 
@@ -1576,13 +1587,12 @@ class NewtonBattery "NewtonBattery" (
     current only during the PWM on-time. Here `effort` is the effort the actuator applies to
     the simulation, excluding other forces on the joint. It is signed: a regenerating
     actuator returns current and offsets the others, but the voltage never rises above
-    `newton:nominalVoltage`. Only actuators whose control law models this current can draw
-    from a battery (see `newton:battery` on `NewtonActuator`).
+    `newton:nominalVoltage`.
 
     The voltage is not updated by the actuators themselves: consumers update it once per
     step, after the actuators have stepped, so the voltage used at a step is computed from
-    the currents of the previous step.
-    """
+    the currents of the previous step. At the first step and after a reset, the voltage is
+    `newton:nominalVoltage`."""
 )
 {
     float newton:nominalVoltage (
@@ -1880,9 +1890,10 @@ class NewtonBAMControlAPI "NewtonBAMControlAPI" (
     The `newton:maxPwm` clamp is applied last, `duty = clamp(duty, -maxPwm, maxPwm)`, so at
     high velocity the back-EMF term can still drive the current above `newton:maxCurrent`.
 
-    `vin` is the supply voltage: `newton:vin`, or the voltage of the `NewtonBattery` the
-    actuator draws from. The actuator then draws the current `duty * effort / kt` from the
-    battery, with the effort it applies to the simulation.
+    `vin` is the supply voltage: `newton:vin`, or the voltage of the battery the actuator
+    draws from if that battery provides one (e.g. `NewtonInternalResistanceBattery`). The
+    actuator then draws the current `duty * effort / kt` from the battery, with the effort it
+    applies to the simulation.
 
     For a BAM fit, `newton:kt` and `newton:resistance` are the fit's `kt` and `R`, and
     `newton:kp` is the firmware gain times the servo model's error gain. `newton:vin`,
@@ -1895,8 +1906,8 @@ class NewtonBAMControlAPI "NewtonBAMControlAPI" (
     effort input.
 
     `newton:kt` and `newton:resistance` have no fallback values and must be authored, as
-    must `newton:vin` unless the actuator draws from a `NewtonBattery`. Parsers should raise
-    an error if any of them is missing.
+    must `newton:vin` unless the actuator draws from a battery that provides its supply
+    voltage. Parsers should raise an error if any of them is missing.
     """
 )
 {
@@ -1939,8 +1950,8 @@ class NewtonBAMControlAPI "NewtonBAMControlAPI" (
     float newton:vin (
         doc = """Supply voltage.
 
-        Ignored when the actuator draws from a `NewtonBattery`, which provides its voltage
-        instead.
+        Ignored when the actuator draws from a battery that provides its supply voltage
+        (e.g. `NewtonInternalResistanceBattery`).
 
         Range: [0, inf)
         Units: volt"""
