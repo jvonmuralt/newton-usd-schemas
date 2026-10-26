@@ -26,6 +26,7 @@ class TestNewtonActuator(unittest.TestCase):
         self.assertEqual(self.prim.GetTypeName(), "NewtonActuator")
         self.assertTrue(self.prim.IsValid())
         self.assertTrue(self.prim.HasRelationship("newton:targets"))
+        self.assertTrue(self.prim.HasRelationship("newton:battery"))
 
     def test_targets_relationship(self):
         rel = self.prim.GetRelationship("newton:targets")
@@ -35,6 +36,12 @@ class TestNewtonActuator(unittest.TestCase):
         self.assertEqual(len(targets), 1)
         self.assertEqual(str(targets[0]), "/World/Joint")
 
+    def test_battery_relationship(self):
+        rel = self.prim.GetRelationship("newton:battery")
+        self.assertFalse(rel.HasAuthoredTargets())
+        rel.SetTargets([Sdf.Path("/World/Battery")])
+        self.assertEqual([str(t) for t in rel.GetTargets()], ["/World/Battery"])
+
     def test_not_imageable(self):
         # Actuators carry a control law bound to a joint; they have no extent and are
         # never rendered, so they derive from UsdTyped rather than UsdGeomImageable.
@@ -43,7 +50,7 @@ class TestNewtonActuator(unittest.TestCase):
         # The prim definition must not advertise Imageable properties it does not have.
         definition = Usd.SchemaRegistry().FindConcretePrimDefinition("NewtonActuator")
         self.assertIsNotNone(definition)
-        self.assertEqual(sorted(definition.GetPropertyNames()), ["newton:targets"])
+        self.assertEqual(sorted(definition.GetPropertyNames()), ["newton:battery", "newton:targets"])
 
     def test_bbox_cache_skips_actuator(self):
         # Regression test: when NewtonActuator declared UsdGeomImageable as its base
@@ -71,19 +78,24 @@ class TestNewtonBattery(unittest.TestCase):
     def test_prim_is_battery(self):
         self.assertEqual(self.prim.GetTypeName(), "NewtonBattery")
         self.assertTrue(self.prim.IsValid())
-        self.assertFalse(self.prim.IsA(UsdGeom.Imageable))
-        self.assertTrue(self.prim.HasRelationship("newton:joints"))
-        for name in ("nominalVoltage", "sagGain", "minVoltage"):
-            self.assertTrue(self.prim.HasAttribute(f"newton:{name}"), name)
 
-    def test_joints_relationship(self):
-        rel = self.prim.GetRelationship("newton:joints")
-        self.assertFalse(rel.HasAuthoredTargets())
-        rel.SetTargets([Sdf.Path("/World/Knee"), Sdf.Path("/World/Ankle")])
-        self.assertEqual([str(t) for t in rel.GetTargets()], ["/World/Knee", "/World/Ankle"])
+    def test_not_imageable(self):
+        self.assertFalse(self.prim.IsA(UsdGeom.Imageable))
+        definition = Usd.SchemaRegistry().FindConcretePrimDefinition("NewtonBattery")
+        self.assertIsNotNone(definition)
+        self.assertEqual(
+            sorted(definition.GetPropertyNames()),
+            ["newton:minVoltage", "newton:nominalVoltage", "newton:resistance"],
+        )
+
+    def test_bbox_cache_skips_battery(self):
+        root = self.stage.DefinePrim("/World", "Xform")
+        self.stage.DefinePrim("/World/Battery", "NewtonBattery")
+        cache = UsdGeom.BBoxCache(Usd.TimeCode.Default(), [UsdGeom.Tokens.default_])
+        self.assertTrue(cache.ComputeWorldBound(root).GetRange().IsEmpty())
 
     def test_voltages(self):
-        for name, fallback, value in (("nominalVoltage", None, 12.0), ("sagGain", 0.0, 0.5), ("minVoltage", None, 9.0)):
+        for name, fallback, value in (("nominalVoltage", None, 12.0), ("resistance", 0.0, 0.5), ("minVoltage", 0.0, 9.0)):
             with self.subTest(name=name):
                 attr = self.prim.GetAttribute(f"newton:{name}")
                 self.assertFalse(attr.HasAuthoredValue())
@@ -417,19 +429,22 @@ class TestNewtonBAMControlAPI(unittest.TestCase):
         for name in ("kp", "kt", "resistance", "vin", "maxPwm", "maxCurrent"):
             self.assertTrue(self.prim.HasAttribute(f"newton:{name}"), name)
 
-    def test_required_attributes(self):
+    def test_attributes(self):
         self.prim.ApplyAPI("NewtonBAMControlAPI")
-        for name, value, maximum in (
-            ("kp", 8.0, None),
-            ("kt", 0.6, None),
-            ("resistance", 2.0, None),
-            ("vin", 12.0, None),
-            ("maxPwm", 0.9, 1.0),
+        for name, fallback, value, maximum in (
+            ("kp", 0.0, 8.0, None),
+            ("kt", None, 0.6, None),
+            ("resistance", None, 2.0, None),
+            ("vin", None, 12.0, None),
+            ("maxPwm", 1.0, 0.9, 1.0),
         ):
             with self.subTest(name=name):
                 attr = self.prim.GetAttribute(f"newton:{name}")
                 self.assertFalse(attr.HasAuthoredValue())
-                self.assertIsNone(attr.Get())
+                if fallback is None:
+                    self.assertIsNone(attr.Get())
+                else:
+                    self.assertAlmostEqual(attr.Get(), fallback)
 
                 attr.Set(value)
                 self.assertTrue(attr.HasAuthoredValue())
