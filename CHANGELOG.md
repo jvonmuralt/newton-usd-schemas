@@ -1,3 +1,16 @@
+# 0.7.0
+
+## Features
+
+- Added `NewtonBAMControlAPI`, a servo control law following the voltage-controlled servo model of [Rhoban/bam](https://github.com/Rhoban/bam), with `newton:kp`, `newton:kt`, `newton:resistance`, `newton:vin`, `newton:maxPwm` and `newton:maxCurrent`
+  - Models the servo firmware and the DC motor; friction is not modeled, and the command delay and armature are authored with `NewtonActuatorDelayAPI` and on the joint.
+- Added `NewtonActuatorInputProcessorBaseAPI`, the base of all actuator input processors, which transform the inputs of the control law
+  - `NewtonActuatorDelayAPI` now applies it implicitly.
+- Added `NewtonActuatorBacklashAPI`, an input processor that senses the actuated joint position on the link side of a passive backlash joint, named by the `newton:backlashJoint` relationship
+- Added `NewtonBattery`, an abstract base for batteries shared by several actuators, and `NewtonInternalResistanceBattery`, an ideal voltage source behind an internal resistance with `newton:nominalVoltage`, `newton:resistance` and `newton:minVoltage`
+  - Actuators draw from a battery with the new `newton:battery` relationship on `NewtonActuator`.
+  - Control laws that read a supply voltage, such as `NewtonBAMControlAPI`, use the battery's voltage instead of `newton:vin`.
+
 # 0.6.0
 
 ## Features

@@ -1515,7 +1515,11 @@ class NewtonActuator "NewtonActuator" (
     Actuators must provide a single control law by applying a `NewtonActuatorControlBaseAPI` derived schema (e.g. `NewtonPDControlAPI`).
 
     Additional input processing (e.g. command delay or link-side position sensing) can be added by applying
-    `NewtonActuatorInputProcessorBaseAPI` derived schemas (e.g. `NewtonActuatorDelayAPI`).
+    `NewtonActuatorInputProcessorBaseAPI` derived schemas (e.g. `NewtonActuatorDelayAPI`). The order of input
+    processors is not guaranteed to be preserved thus input processors must be order independent.
+
+    An actuator may draw from a battery shared with other actuators (e.g. `NewtonInternalResistanceBattery`)
+    via the `newton:battery` relationship.
 
     Additional effort clamping behaviors can be added by applying any number of `NewtonActuatorClampingBaseAPI`
     derived schemas (e.g. `NewtonMaxEffortClampingAPI`). The order of clamping is not guaranteed to be preserved thus
@@ -1546,7 +1550,8 @@ class NewtonActuator "NewtonActuator" (
 
         The relationship is optional. Only the first target is honored, and it must
         identify a prim derived from `NewtonBattery` (e.g. `NewtonInternalResistanceBattery`).
-        The battery type defines which actuators may target it.
+        Parsers should raise an error if it does not. The battery type defines which actuators
+        may target it.
         """
     )
 }
@@ -1592,7 +1597,12 @@ class NewtonInternalResistanceBattery "NewtonInternalResistanceBattery" (
     The voltage is not updated by the actuators themselves: consumers update it once per
     step, after the actuators have stepped, so the voltage used at a step is computed from
     the currents of the previous step. At the first step and after a reset, the voltage is
-    `newton:nominalVoltage`."""
+    `newton:nominalVoltage`.
+
+    This feedback loop settles only while the battery resistance is small enough. For
+    `NewtonBAMControlAPI` actuators, it settles while `resistance * sum(maxPwm^2 / r) < 1`,
+    where `resistance` is the battery's `newton:resistance` and `r` is each actuator's motor
+    `newton:resistance`. Above that bound, the voltage oscillates instead of converging."""
 )
 {
     float newton:nominalVoltage (
