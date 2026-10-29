@@ -2,14 +2,17 @@
 
 ## Features
 
-- Added `NewtonBAMControlAPI`, a servo control law following the voltage-controlled servo model of [Rhoban/bam](https://github.com/Rhoban/bam), with `newton:kp`, `newton:kt`, `newton:resistance`, `newton:vin`, `newton:maxPwm` and `newton:maxCurrent`
-  - Models the servo firmware and the DC motor; friction is not modeled, and the command delay and armature are authored with `NewtonActuatorDelayAPI` and on the joint.
+- Added `NewtonDCMotorAPI`, a DC motor driven by a PWM voltage following the voltage-controlled servo model of [Rhoban/bam](https://github.com/Rhoban/bam), with `newton:kt`, `newton:resistance` and `newton:vin`, which turns the motor command into the effort of a motor as the last stage of an actuator
+  - With a motor, the control law computes the motor command instead of the effort (e.g. a voltage), and the clamping bounds that command.
+- Added `NewtonVoltageControlAPI`, the firmware position controller of a BAM voltage-controlled servo, with `newton:kp` and `newton:errorGain`, which outputs the voltage of a motor
+- Added `NewtonCurrentPWMClampingAPI`, the current and PWM limits of the firmware of a servo, with `newton:maxCurrent` and `newton:maxPwm`, applied in this order to the voltage of a `NewtonDCMotorAPI` whose `newton:kt` and `newton:resistance` it uses
+  - Together they reproduce a BAM voltage-controlled servo; friction is not modeled, and the command delay and armature are authored with `NewtonActuatorDelayAPI` and on the joint.
 - Added `NewtonActuatorInputProcessorBaseAPI`, the base of all actuator input processors, which transform the inputs of the control law
   - `NewtonActuatorDelayAPI` now applies it implicitly.
-- Added `NewtonActuatorBacklashAPI`, an input processor that senses the actuated joint position on the link side of a passive backlash joint, named by the `newton:backlashJoint` relationship
-- Added `NewtonBattery`, an abstract base for batteries shared by several actuators, and `NewtonInternalResistanceBattery`, an ideal voltage source behind an internal resistance with `newton:nominalVoltage`, `newton:resistance` and `newton:minVoltage`
+- Added `NewtonActuatorEncoderAPI`, an input processor that models the position encoder of an actuator, mounted behind a passive output joint named by the `newton:outputJoint` relationship, e.g. to capture gearbox backlash
+- Added `NewtonBattery`, an abstract base for batteries shared by the motors of several actuators, and `NewtonConstantResistanceBattery`, an ideal voltage source behind a constant internal resistance with `newton:nominalVoltage`, `newton:resistance` and `newton:minVoltage`
   - Actuators draw from a battery with the new `newton:battery` relationship on `NewtonActuator`.
-  - Control laws that read a supply voltage, such as `NewtonBAMControlAPI`, use the battery's voltage instead of `newton:vin`.
+  - Motors that provide a supply voltage, such as `NewtonDCMotorAPI`, use the battery's voltage instead of `newton:vin`.
 
 # 0.6.0
 

@@ -76,25 +76,25 @@ class TestNewtonBattery(unittest.TestCase):
         self.assertIsNone(Usd.SchemaRegistry().FindConcretePrimDefinition("NewtonBattery"))
 
 
-class TestNewtonInternalResistanceBattery(unittest.TestCase):
+class TestNewtonConstantResistanceBattery(unittest.TestCase):
     def setUp(self):
         self.stage: Usd.Stage = Usd.Stage.CreateInMemory()
-        self.prim: Usd.Prim = self.stage.DefinePrim("/Battery", "NewtonInternalResistanceBattery")
+        self.prim: Usd.Prim = self.stage.DefinePrim("/Battery", "NewtonConstantResistanceBattery")
 
     def test_typed_schema_registered(self):
-        plug_type = Plug.Registry().FindTypeByName("NewtonPhysicsInternalResistanceBattery")
-        self.assertEqual(plug_type.typeName, "NewtonPhysicsInternalResistanceBattery")
-        schema_type = Usd.SchemaRegistry().GetSchemaTypeName("NewtonPhysicsInternalResistanceBattery")
-        self.assertEqual(schema_type, "NewtonInternalResistanceBattery")
+        plug_type = Plug.Registry().FindTypeByName("NewtonPhysicsConstantResistanceBattery")
+        self.assertEqual(plug_type.typeName, "NewtonPhysicsConstantResistanceBattery")
+        schema_type = Usd.SchemaRegistry().GetSchemaTypeName("NewtonPhysicsConstantResistanceBattery")
+        self.assertEqual(schema_type, "NewtonConstantResistanceBattery")
 
     def test_prim_is_battery(self):
-        self.assertEqual(self.prim.GetTypeName(), "NewtonInternalResistanceBattery")
+        self.assertEqual(self.prim.GetTypeName(), "NewtonConstantResistanceBattery")
         self.assertTrue(self.prim.IsValid())
         self.assertTrue(self.prim.IsA("NewtonBattery"))
 
     def test_not_imageable(self):
         self.assertFalse(self.prim.IsA(UsdGeom.Imageable))
-        definition = Usd.SchemaRegistry().FindConcretePrimDefinition("NewtonInternalResistanceBattery")
+        definition = Usd.SchemaRegistry().FindConcretePrimDefinition("NewtonConstantResistanceBattery")
         self.assertIsNotNone(definition)
         self.assertEqual(
             sorted(definition.GetPropertyNames()),
@@ -103,7 +103,7 @@ class TestNewtonInternalResistanceBattery(unittest.TestCase):
 
     def test_bbox_cache_skips_battery(self):
         root = self.stage.DefinePrim("/World", "Xform")
-        self.stage.DefinePrim("/World/Battery", "NewtonInternalResistanceBattery")
+        self.stage.DefinePrim("/World/Battery", "NewtonConstantResistanceBattery")
         cache = UsdGeom.BBoxCache(Usd.TimeCode.Default(), [UsdGeom.Tokens.default_])
         self.assertTrue(cache.ComputeWorldBound(root).GetRange().IsEmpty())
 
@@ -145,7 +145,7 @@ class TestNewtonActuatorInputProcessorBaseAPI(unittest.TestCase):
         self.assertTrue(self.prim.HasAPI("NewtonActuatorInputProcessorBaseAPI"))
 
     def test_applied_by_input_processors(self):
-        for name in ("NewtonActuatorDelayAPI", "NewtonActuatorBacklashAPI"):
+        for name in ("NewtonActuatorDelayAPI", "NewtonActuatorEncoderAPI"):
             with self.subTest(name=name):
                 prim = self.stage.DefinePrim(f"/{name}", "NewtonActuator")
                 prim.ApplyAPI(name)
@@ -197,35 +197,35 @@ class TestNewtonActuatorDelayAPI(unittest.TestCase):
         self.assertFalse(xform.CanApplyAPI("NewtonActuatorDelayAPI"))
 
 
-class TestNewtonActuatorBacklashAPI(unittest.TestCase):
+class TestNewtonActuatorEncoderAPI(unittest.TestCase):
     def setUp(self):
         self.stage: Usd.Stage = Usd.Stage.CreateInMemory()
         self.prim: Usd.Prim = self.stage.DefinePrim("/Actuator", "NewtonActuator")
 
     def test_api_registered(self):
-        plug_type = Plug.Registry().FindTypeByName("NewtonPhysicsActuatorBacklashAPI")
-        self.assertEqual(plug_type.typeName, "NewtonPhysicsActuatorBacklashAPI")
-        schema_type = Usd.SchemaRegistry().GetSchemaTypeName("NewtonPhysicsActuatorBacklashAPI")
-        self.assertEqual(schema_type, "NewtonActuatorBacklashAPI")
+        plug_type = Plug.Registry().FindTypeByName("NewtonPhysicsActuatorEncoderAPI")
+        self.assertEqual(plug_type.typeName, "NewtonPhysicsActuatorEncoderAPI")
+        schema_type = Usd.SchemaRegistry().GetSchemaTypeName("NewtonPhysicsActuatorEncoderAPI")
+        self.assertEqual(schema_type, "NewtonActuatorEncoderAPI")
 
     def test_api_application(self):
-        self.assertFalse(self.prim.HasAPI("NewtonActuatorBacklashAPI"))
-        self.prim.ApplyAPI("NewtonActuatorBacklashAPI")
-        self.assertTrue(self.prim.HasAPI("NewtonActuatorBacklashAPI"))
-        self.assertTrue(self.prim.HasRelationship("newton:backlashJoint"))
+        self.assertFalse(self.prim.HasAPI("NewtonActuatorEncoderAPI"))
+        self.prim.ApplyAPI("NewtonActuatorEncoderAPI")
+        self.assertTrue(self.prim.HasAPI("NewtonActuatorEncoderAPI"))
+        self.assertTrue(self.prim.HasRelationship("newton:outputJoint"))
 
-    def test_backlash_joint_relationship(self):
-        self.prim.ApplyAPI("NewtonActuatorBacklashAPI")
-        rel = self.prim.GetRelationship("newton:backlashJoint")
+    def test_output_joint_relationship(self):
+        self.prim.ApplyAPI("NewtonActuatorEncoderAPI")
+        rel = self.prim.GetRelationship("newton:outputJoint")
         self.assertFalse(rel.HasAuthoredTargets())
-        rel.SetTargets([Sdf.Path("/World/BacklashJoint")])
+        rel.SetTargets([Sdf.Path("/World/OutputJoint")])
         targets = rel.GetTargets()
         self.assertEqual(len(targets), 1)
-        self.assertEqual(str(targets[0]), "/World/BacklashJoint")
+        self.assertEqual(str(targets[0]), "/World/OutputJoint")
 
     def test_api_limitations(self):
         xform = self.stage.DefinePrim("/NotActuator", "Xform")
-        self.assertFalse(xform.CanApplyAPI("NewtonActuatorBacklashAPI"))
+        self.assertFalse(xform.CanApplyAPI("NewtonActuatorEncoderAPI"))
 
 
 class TestNewtonActuatorControlBaseAPI(unittest.TestCase):
@@ -422,35 +422,27 @@ class TestNewtonNeuralControlAPI(unittest.TestCase):
         self.assertFalse(xform.CanApplyAPI("NewtonNeuralControlAPI"))
 
 
-class TestNewtonBAMControlAPI(unittest.TestCase):
+class TestNewtonVoltageControlAPI(unittest.TestCase):
     def setUp(self):
         self.stage: Usd.Stage = Usd.Stage.CreateInMemory()
         self.prim: Usd.Prim = self.stage.DefinePrim("/Actuator", "NewtonActuator")
 
     def test_api_registered(self):
-        plug_type = Plug.Registry().FindTypeByName("NewtonPhysicsBAMControlAPI")
-        self.assertEqual(plug_type.typeName, "NewtonPhysicsBAMControlAPI")
-        schema_type = Usd.SchemaRegistry().GetSchemaTypeName("NewtonPhysicsBAMControlAPI")
-        self.assertEqual(schema_type, "NewtonBAMControlAPI")
+        plug_type = Plug.Registry().FindTypeByName("NewtonPhysicsVoltageControlAPI")
+        self.assertEqual(plug_type.typeName, "NewtonPhysicsVoltageControlAPI")
+        schema_type = Usd.SchemaRegistry().GetSchemaTypeName("NewtonPhysicsVoltageControlAPI")
+        self.assertEqual(schema_type, "NewtonVoltageControlAPI")
 
     def test_api_application(self):
-        self.assertFalse(self.prim.HasAPI("NewtonBAMControlAPI"))
+        self.assertFalse(self.prim.HasAPI("NewtonVoltageControlAPI"))
         self.assertFalse(self.prim.HasAPI("NewtonActuatorControlBaseAPI"))
-        self.prim.ApplyAPI("NewtonBAMControlAPI")
-        self.assertTrue(self.prim.HasAPI("NewtonBAMControlAPI"))
+        self.prim.ApplyAPI("NewtonVoltageControlAPI")
+        self.assertTrue(self.prim.HasAPI("NewtonVoltageControlAPI"))
         self.assertTrue(self.prim.HasAPI("NewtonActuatorControlBaseAPI"))
-        for name in ("kp", "kt", "resistance", "vin", "maxPwm", "maxCurrent"):
-            self.assertTrue(self.prim.HasAttribute(f"newton:{name}"), name)
 
     def test_attributes(self):
-        self.prim.ApplyAPI("NewtonBAMControlAPI")
-        for name, fallback, value, maximum in (
-            ("kp", 0.0, 8.0, None),
-            ("kt", None, 0.6, None),
-            ("resistance", None, 2.0, None),
-            ("vin", None, 12.0, None),
-            ("maxPwm", 1.0, 0.9, 1.0),
-        ):
+        self.prim.ApplyAPI("NewtonVoltageControlAPI")
+        for name, fallback, value in (("kp", 0.0, 32.0), ("errorGain", 1.0, 0.015625)):
             with self.subTest(name=name):
                 attr = self.prim.GetAttribute(f"newton:{name}")
                 self.assertFalse(attr.HasAuthoredValue())
@@ -467,30 +459,11 @@ class TestNewtonBAMControlAPI(unittest.TestCase):
                     hard = attr.GetHardLimits()
                     self.assertTrue(hard.IsValid())
                     self.assertAlmostEqual(hard.GetMinimum(), 0.0)
-                    if maximum is None:
-                        self.assertIsNone(hard.GetMaximum())
-                    else:
-                        self.assertAlmostEqual(hard.GetMaximum(), maximum)
-
-    def test_max_current(self):
-        self.prim.ApplyAPI("NewtonBAMControlAPI")
-        attr = self.prim.GetAttribute("newton:maxCurrent")
-        self.assertFalse(attr.HasAuthoredValue())
-        self.assertAlmostEqual(attr.Get(), 0.0)
-
-        attr.Set(1.5)
-        self.assertTrue(attr.HasAuthoredValue())
-        self.assertAlmostEqual(attr.Get(), 1.5)
-
-        if USD_HAS_LIMITS:
-            hard = attr.GetHardLimits()
-            self.assertTrue(hard.IsValid())
-            self.assertAlmostEqual(hard.GetMinimum(), 0.0)
-            self.assertIsNone(hard.GetMaximum())
+                    self.assertIsNone(hard.GetMaximum())
 
     def test_api_limitations(self):
         xform = self.stage.DefinePrim("/NotActuator", "Xform")
-        self.assertFalse(xform.CanApplyAPI("NewtonBAMControlAPI"))
+        self.assertFalse(xform.CanApplyAPI("NewtonVoltageControlAPI"))
 
 
 class TestNewtonActuatorClampingBaseAPI(unittest.TestCase):
@@ -669,6 +642,93 @@ class TestNewtonPositionBasedClampingAPI(unittest.TestCase):
     def test_api_limitations(self):
         xform = self.stage.DefinePrim("/NotActuator", "Xform")
         self.assertFalse(xform.CanApplyAPI("NewtonPositionBasedClampingAPI"))
+
+
+class TestNewtonCurrentPWMClampingAPI(unittest.TestCase):
+    def setUp(self):
+        self.stage: Usd.Stage = Usd.Stage.CreateInMemory()
+        self.prim: Usd.Prim = self.stage.DefinePrim("/Actuator", "NewtonActuator")
+
+    def test_api_registered(self):
+        plug_type = Plug.Registry().FindTypeByName("NewtonPhysicsCurrentPWMClampingAPI")
+        self.assertEqual(plug_type.typeName, "NewtonPhysicsCurrentPWMClampingAPI")
+        schema_type = Usd.SchemaRegistry().GetSchemaTypeName("NewtonPhysicsCurrentPWMClampingAPI")
+        self.assertEqual(schema_type, "NewtonCurrentPWMClampingAPI")
+
+    def test_api_application(self):
+        self.assertFalse(self.prim.HasAPI("NewtonCurrentPWMClampingAPI"))
+        self.assertFalse(self.prim.HasAPI("NewtonActuatorClampingBaseAPI"))
+        self.prim.ApplyAPI("NewtonCurrentPWMClampingAPI")
+        self.assertTrue(self.prim.HasAPI("NewtonCurrentPWMClampingAPI"))
+        self.assertTrue(self.prim.HasAPI("NewtonActuatorClampingBaseAPI"))
+
+    def test_attributes(self):
+        self.prim.ApplyAPI("NewtonCurrentPWMClampingAPI")
+        for name, fallback, value, maximum in (("maxCurrent", 0.0, 1.5, None), ("maxPwm", 1.0, 0.9, 1.0)):
+            with self.subTest(name=name):
+                attr = self.prim.GetAttribute(f"newton:{name}")
+                self.assertFalse(attr.HasAuthoredValue())
+                self.assertAlmostEqual(attr.Get(), fallback)
+
+                attr.Set(value)
+                self.assertTrue(attr.HasAuthoredValue())
+                self.assertAlmostEqual(attr.Get(), value, places=6)
+
+                if USD_HAS_LIMITS:
+                    hard = attr.GetHardLimits()
+                    self.assertTrue(hard.IsValid())
+                    self.assertAlmostEqual(hard.GetMinimum(), 0.0)
+                    if maximum is None:
+                        self.assertIsNone(hard.GetMaximum())
+                    else:
+                        self.assertAlmostEqual(hard.GetMaximum(), maximum)
+
+    def test_api_limitations(self):
+        xform = self.stage.DefinePrim("/NotActuator", "Xform")
+        self.assertFalse(xform.CanApplyAPI("NewtonCurrentPWMClampingAPI"))
+
+
+class TestNewtonDCMotorAPI(unittest.TestCase):
+    def setUp(self):
+        self.stage: Usd.Stage = Usd.Stage.CreateInMemory()
+        self.prim: Usd.Prim = self.stage.DefinePrim("/Actuator", "NewtonActuator")
+
+    def test_api_registered(self):
+        plug_type = Plug.Registry().FindTypeByName("NewtonPhysicsDCMotorAPI")
+        self.assertEqual(plug_type.typeName, "NewtonPhysicsDCMotorAPI")
+        schema_type = Usd.SchemaRegistry().GetSchemaTypeName("NewtonPhysicsDCMotorAPI")
+        self.assertEqual(schema_type, "NewtonDCMotorAPI")
+
+    def test_api_application(self):
+        self.assertFalse(self.prim.HasAPI("NewtonDCMotorAPI"))
+        self.prim.ApplyAPI("NewtonDCMotorAPI")
+        self.assertTrue(self.prim.HasAPI("NewtonDCMotorAPI"))
+        for name in ("kt", "resistance", "vin"):
+            self.assertTrue(self.prim.HasAttribute(f"newton:{name}"), name)
+        for name in ("maxPwm", "maxCurrent"):
+            self.assertFalse(self.prim.HasAttribute(f"newton:{name}"), name)
+
+    def test_attributes(self):
+        self.prim.ApplyAPI("NewtonDCMotorAPI")
+        for name, value in (("kt", 0.6), ("resistance", 2.0), ("vin", 12.0)):
+            with self.subTest(name=name):
+                attr = self.prim.GetAttribute(f"newton:{name}")
+                self.assertFalse(attr.HasAuthoredValue())
+                self.assertIsNone(attr.Get())
+
+                attr.Set(value)
+                self.assertTrue(attr.HasAuthoredValue())
+                self.assertAlmostEqual(attr.Get(), value, places=6)
+
+                if USD_HAS_LIMITS:
+                    hard = attr.GetHardLimits()
+                    self.assertTrue(hard.IsValid())
+                    self.assertAlmostEqual(hard.GetMinimum(), 0.0)
+                    self.assertIsNone(hard.GetMaximum())
+
+    def test_api_limitations(self):
+        xform = self.stage.DefinePrim("/NotActuator", "Xform")
+        self.assertFalse(xform.CanApplyAPI("NewtonDCMotorAPI"))
 
 
 if __name__ == "__main__":
