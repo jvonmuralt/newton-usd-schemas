@@ -1912,7 +1912,7 @@ class NewtonVoltageControlAPI "NewtonVoltageControlAPI" (
 
     Target velocity and feedforward terms are ignored, since the modeled firmware has no effort
     input. For a BAM fit, `newton:kp` and `newton:errorGain` are the firmware gain and the error
-    gain of the servo.
+    gain of the servo, not fitted values.
     """
 )
 {
@@ -2096,7 +2096,7 @@ class NewtonCurrentPWMClampingAPI "NewtonCurrentPWMClampingAPI" (
 
     The current limit keeps the motor current within `[-maxCurrent, maxCurrent]`. The PWM limit
     is applied last, so at high velocity the back-EMF can still drive the current above
-    `newton:maxCurrent`.
+    `newton:maxCurrent`. For a BAM fit, both are firmware limits of the servo, not fitted values.
     """
 )
 {
@@ -2149,7 +2149,11 @@ class NewtonDCMotorAPI "NewtonDCMotorAPI" (
     The actuator then draws the current `duty * current` from the battery, with the duty cycle
     `duty = voltage / V`.
 
-    For a BAM fit, `newton:kt` and `newton:resistance` are the fit's `kt` and `R`.
+    For a BAM fit, `newton:kt` and `newton:resistance` are the fit's `kt` and `R`, and
+    `newton:vin` is the supply voltage of the servo, not a fitted value. The rest of a fit is
+    modeled outside the actuator: its armature on the actuated joint and its command delay with
+    `NewtonActuatorDelayAPI`. Its friction is not modeled, and BAM's current-controlled servo
+    models are not covered.
 
     `newton:kt` and `newton:resistance` have no fallback values and must be authored, as must
     `newton:vin` unless the actuator draws from a battery that provides its supply voltage.
