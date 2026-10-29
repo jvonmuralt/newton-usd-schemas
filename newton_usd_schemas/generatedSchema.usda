@@ -1518,16 +1518,17 @@ class NewtonActuator "NewtonActuator" (
     `NewtonActuatorInputProcessorBaseAPI` derived schemas (e.g. `NewtonActuatorDelayAPI`). The order of input
     processors is not guaranteed to be preserved thus input processors must be order independent.
 
-    The motor of an actuator may draw from a battery shared with other actuators (e.g.
-    `NewtonConstantResistanceBattery`) via the `newton:battery` relationship.
-
     Additional effort clamping behaviors can be added by applying any number of `NewtonActuatorClampingBaseAPI`
     derived schemas (e.g. `NewtonMaxEffortClampingAPI`). The order of clamping is not guaranteed to be preserved thus
     clamping operations must be order independent.
 
-    A motor can be added by applying `NewtonDCMotorAPI`. The motor is applied after the clamping. With a motor, the control law computes the motor command instead
-    of the effort (e.g. a voltage for `NewtonDCMotorAPI`), the clamping bounds that command, and the motor turns
-    it into the effort of the motor.
+    A motor can be added by applying `NewtonDCMotorAPI`. The motor is applied after the clamping. With a
+    motor, the control law computes the motor command instead of the effort (e.g. a voltage for
+    `NewtonDCMotorAPI`), the clamping bounds that command, and the motor turns it into the effort of the
+    motor.
+
+    The motor of an actuator may draw from a battery shared with other actuators (e.g.
+    `NewtonConstantResistanceBattery`) via the `newton:battery` relationship.
 
     Note: Newton actuators use radians, diverging from `UsdPhysicsDriveAPI` which uses degrees.
     Actuator attributes are also documented in joint space, though this is not enforced,
