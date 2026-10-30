@@ -1522,7 +1522,8 @@ class NewtonActuator "NewtonActuator" (
     derived schemas (e.g. `NewtonMaxEffortClampingAPI`). The order of clamping is not guaranteed to be preserved thus
     clamping operations must be order independent.
 
-    A motor can be added by applying `NewtonDCMotorAPI`. With a motor, the control law must output the motor
+    A single motor can be added by applying a `NewtonActuatorMotorBaseAPI` derived schema (e.g.
+    `NewtonDCMotorAPI`). With a motor, the control law must output the motor
     command (e.g. a voltage from `NewtonVoltageControlAPI`), and the motor turns it into the effort of the
     motor, which the clamping bounds.
 
@@ -2152,17 +2153,37 @@ class NewtonCurrentPWMClampingAPI "NewtonCurrentPWMClampingAPI" (
     )
 }
 
+class NewtonActuatorMotorBaseAPI "NewtonActuatorMotorBaseAPI" (
+    doc = """Base API for all actuator motors.
+
+    Motors turn the motor command of the control law (e.g. a voltage from `NewtonVoltageControlAPI`),
+    bounded by any applied `NewtonActuatorCommandClampingBaseAPI` derived schemas, into the effort of the
+    motor. This effort may still be constrained by one or more applied `NewtonActuatorClampingBaseAPI`
+    derived schemas.
+
+    Actuators may provide a single motor by applying a `NewtonActuatorMotorBaseAPI` derived schema (e.g. `NewtonDCMotorAPI`).
+
+    Applying any motor API automatically applies this base.
+    Check `prim.HasAPI('NewtonActuatorMotorBaseAPI')` to detect whether any motor is present.
+
+    Only one motor API should be applied to a given `NewtonActuator` prim."""
+)
+{
+}
+
 class NewtonDCMotorAPI "NewtonDCMotorAPI" (
+    apiSchemas = ["NewtonActuatorMotorBaseAPI"]
     doc = """DC motor driven by a PWM voltage, as in BAM (Better Actuator Models).
 
     This follows the voltage-controlled servo model of the [Rhoban/bam](https://github.com/Rhoban/bam)
     library, whose identified fits are described in the ICRA 2025 paper "Extended Friction Models
     for the Physics Simulation of Servo Actuators".
 
-    The motor is the last stage of an actuator. It computes the effort from the voltage command
+    The motor computes the effort from the voltage command
     of the control law (e.g. `NewtonVoltageControlAPI`), bounded by command clamping (e.g.
-    `NewtonCurrentPWMClampingAPI`):
+    `NewtonCurrentPWMClampingAPI`), and by the supply voltage `V`, which the motor cannot exceed:
 
+        `voltage = clamp(voltage, -V, V)`
         `current = (voltage - kt*v) / resistance`
         `effort = kt*current`
 

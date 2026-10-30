@@ -711,6 +711,27 @@ class TestNewtonCurrentPWMClampingAPI(unittest.TestCase):
         self.assertFalse(xform.CanApplyAPI("NewtonCurrentPWMClampingAPI"))
 
 
+class TestNewtonActuatorMotorBaseAPI(unittest.TestCase):
+    def setUp(self):
+        self.stage: Usd.Stage = Usd.Stage.CreateInMemory()
+        self.prim: Usd.Prim = self.stage.DefinePrim("/Actuator", "NewtonActuator")
+
+    def test_api_registered(self):
+        plug_type = Plug.Registry().FindTypeByName("NewtonPhysicsActuatorMotorBaseAPI")
+        self.assertEqual(plug_type.typeName, "NewtonPhysicsActuatorMotorBaseAPI")
+        schema_type = Usd.SchemaRegistry().GetSchemaTypeName("NewtonPhysicsActuatorMotorBaseAPI")
+        self.assertEqual(schema_type, "NewtonActuatorMotorBaseAPI")
+
+    def test_api_application(self):
+        self.assertFalse(self.prim.HasAPI("NewtonActuatorMotorBaseAPI"))
+        self.prim.ApplyAPI("NewtonActuatorMotorBaseAPI")
+        self.assertTrue(self.prim.HasAPI("NewtonActuatorMotorBaseAPI"))
+
+    def test_api_limitations(self):
+        xform = self.stage.DefinePrim("/NotActuator", "Xform")
+        self.assertFalse(xform.CanApplyAPI("NewtonActuatorMotorBaseAPI"))
+
+
 class TestNewtonDCMotorAPI(unittest.TestCase):
     def setUp(self):
         self.stage: Usd.Stage = Usd.Stage.CreateInMemory()
@@ -724,8 +745,10 @@ class TestNewtonDCMotorAPI(unittest.TestCase):
 
     def test_api_application(self):
         self.assertFalse(self.prim.HasAPI("NewtonDCMotorAPI"))
+        self.assertFalse(self.prim.HasAPI("NewtonActuatorMotorBaseAPI"))
         self.prim.ApplyAPI("NewtonDCMotorAPI")
         self.assertTrue(self.prim.HasAPI("NewtonDCMotorAPI"))
+        self.assertTrue(self.prim.HasAPI("NewtonActuatorMotorBaseAPI"))
         for name in ("kt", "resistance", "vin"):
             self.assertTrue(self.prim.HasAttribute(f"newton:{name}"), name)
         for name in ("maxPwm", "maxCurrent"):

@@ -2,7 +2,8 @@
 
 ## Features
 
-- Added `NewtonDCMotorAPI`, a DC motor driven by a PWM voltage following the voltage-controlled servo model of [Rhoban/bam](https://github.com/Rhoban/bam), with `newton:kt`, `newton:resistance` and `newton:vin`, which turns the motor command into the effort of a motor as the last stage of an actuator
+- Added `NewtonActuatorMotorBaseAPI`, the base of all actuator motors, which turn the motor command into the effort of a motor; at most one motor may be applied to an actuator
+- Added `NewtonDCMotorAPI`, a DC motor driven by a PWM voltage following the voltage-controlled servo model of [Rhoban/bam](https://github.com/Rhoban/bam), with `newton:kt`, `newton:resistance` and `newton:vin`, which turns the motor command into the effort of a motor
   - With a motor, the control law must output the motor command (e.g. a voltage from `NewtonVoltageControlAPI`), command clamping bounds that command, and clamping bounds the effort of the motor. Control laws that output an effort, such as `NewtonPDControlAPI`, must not be combined with a motor.
 - Added `NewtonVoltageControlAPI`, the firmware position controller of a BAM voltage-controlled servo, with `newton:kp` and `newton:errorGain`, which outputs the voltage of a motor
 - Added `NewtonActuatorCommandClampingBaseAPI`, the base of all actuator command clamping, which bounds the motor command before the motor
