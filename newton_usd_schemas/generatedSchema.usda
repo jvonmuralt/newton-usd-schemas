@@ -1523,9 +1523,8 @@ class NewtonActuator "NewtonActuator" (
     clamping operations must be order independent.
 
     A motor can be added by applying `NewtonDCMotorAPI`. The motor is applied after the clamping. With a
-    motor, the control law computes the motor command instead of the effort (e.g. a voltage for
-    `NewtonDCMotorAPI`), the clamping bounds that command, and the motor turns it into the effort of the
-    motor.
+    motor, the control law must output the motor command (e.g. a voltage from `NewtonVoltageControlAPI`),
+    the clamping bounds that command, and the motor turns it into the effort of the motor.
 
     The motor of an actuator may draw from a battery shared with other actuators (e.g.
     `NewtonConstantResistanceBattery`) via the `newton:battery` relationship.
@@ -1743,8 +1742,10 @@ class NewtonActuatorControlBaseAPI "NewtonActuatorControlBaseAPI" (
 
     Actuators must provide a single control law by applying a `NewtonActuatorControlBaseAPI` derived schema (e.g. `NewtonPDControlAPI`).
 
-    In an actuator with a motor, the control law computes the motor command instead of the effort
-    (e.g. a voltage for `NewtonDCMotorAPI`), in the units of that command.
+    Each control law outputs either an effort (e.g. `NewtonPDControlAPI`) or a motor command (e.g.
+    a voltage from `NewtonVoltageControlAPI`), as stated in its doc. A control law that outputs an
+    effort must not be combined with a motor, and a control law that outputs a motor command
+    requires one. Parsers should raise an error for either combination.
 
     Applying any control law API (e.g. PD, PID, Network) automatically applies this base.
     Check `prim.HasAPI('NewtonActuatorControlBaseAPI')` to detect whether any control law is present.
@@ -2144,6 +2145,9 @@ class NewtonDCMotorAPI "NewtonDCMotorAPI" (
 
         `current = (voltage - kt*v) / resistance`
         `effort = kt*current`
+
+    Control laws that output an effort (e.g. `NewtonPDControlAPI`) must not be combined with this
+    motor. Parsers should raise an error if one is applied.
 
     The motor provides the supply voltage `V`: `newton:vin`, or the voltage of the battery the
     actuator draws from if that battery provides one (e.g. `NewtonConstantResistanceBattery`).
