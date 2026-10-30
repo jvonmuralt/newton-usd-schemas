@@ -1522,9 +1522,14 @@ class NewtonActuator "NewtonActuator" (
     derived schemas (e.g. `NewtonMaxEffortClampingAPI`). The order of clamping is not guaranteed to be preserved thus
     clamping operations must be order independent.
 
-    A motor can be added by applying `NewtonDCMotorAPI`. The motor is applied after the clamping. With a
-    motor, the control law must output the motor command (e.g. a voltage from `NewtonVoltageControlAPI`),
-    the clamping bounds that command, and the motor turns it into the effort of the motor.
+    A motor can be added by applying `NewtonDCMotorAPI`. With a motor, the control law must output the motor
+    command (e.g. a voltage from `NewtonVoltageControlAPI`), and the motor turns it into the effort of the
+    motor, which the clamping bounds.
+
+    With a motor, command clamping behaviors can be added by applying any number of
+    `NewtonActuatorCommandClampingBaseAPI` derived schemas (e.g. `NewtonCurrentPWMClampingAPI`). They bound
+    the motor command before the motor. The order of command clamping is not guaranteed to be preserved thus
+    command clamping operations must be order independent.
 
     The motor of an actuator may draw from a battery shared with other actuators (e.g.
     `NewtonConstantResistanceBattery`) via the `newton:battery` relationship.
@@ -1952,11 +1957,26 @@ class NewtonActuatorClampingBaseAPI "NewtonActuatorClampingBaseAPI" (
     applied to a `NewtonActuator` to constrain actuator output effort (i.e. force/torque for linear/rotational actuators). The order of clamping
     is not guaranteed to be preserved thus clamping operations must be order independent.
 
-    In an actuator with a motor, clamping bounds the motor command instead of the effort (e.g. a
-    voltage for `NewtonDCMotorAPI`), in the units of that command.
+    In an actuator with a motor, clamping is applied after the motor and bounds the effort of the motor.
 
     Applying any clamping API (e.g. `NewtonMaxEffortClampingAPI`, `NewtonDCMotorClampingAPI`, `NewtonPositionBasedClampingAPI`) automatically
     applies this base. Check `prim.HasAPI('NewtonActuatorClampingBaseAPI')` to detect whether any clamping is present.
+    """
+)
+{
+}
+
+class NewtonActuatorCommandClampingBaseAPI "NewtonActuatorCommandClampingBaseAPI" (
+    doc = """Base API for all actuator command clamping strategies.
+
+    Any number of `NewtonActuatorCommandClampingBaseAPI` derived schemas (e.g. `NewtonCurrentPWMClampingAPI`) may be
+    applied to a `NewtonActuator` to constrain the motor command (e.g. a voltage for `NewtonDCMotorAPI`). The order of command clamping
+    is not guaranteed to be preserved thus command clamping operations must be order independent.
+
+    Command clamping is applied before the motor and requires one. Parsers should raise an error if none is applied.
+
+    Applying any command clamping API (e.g. `NewtonCurrentPWMClampingAPI`) automatically
+    applies this base. Check `prim.HasAPI('NewtonActuatorCommandClampingBaseAPI')` to detect whether any command clamping is present.
     """
 )
 {
@@ -2078,7 +2098,7 @@ class NewtonPositionBasedClampingAPI "NewtonPositionBasedClampingAPI" (
 }
 
 class NewtonCurrentPWMClampingAPI "NewtonCurrentPWMClampingAPI" (
-    apiSchemas = ["NewtonActuatorClampingBaseAPI"]
+    apiSchemas = ["NewtonActuatorCommandClampingBaseAPI"]
     doc = """Current and PWM limits of the firmware of a servo, as in BAM (Better Actuator Models).
 
     This follows the voltage-controlled servo model of the [Rhoban/bam](https://github.com/Rhoban/bam)
@@ -2140,7 +2160,7 @@ class NewtonDCMotorAPI "NewtonDCMotorAPI" (
     for the Physics Simulation of Servo Actuators".
 
     The motor is the last stage of an actuator. It computes the effort from the voltage command
-    of the control law (e.g. `NewtonVoltageControlAPI`), bounded by the clamping (e.g.
+    of the control law (e.g. `NewtonVoltageControlAPI`), bounded by command clamping (e.g.
     `NewtonCurrentPWMClampingAPI`):
 
         `current = (voltage - kt*v) / resistance`
