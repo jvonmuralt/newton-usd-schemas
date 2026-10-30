@@ -1597,6 +1597,10 @@ class NewtonConstantResistanceBattery "NewtonConstantResistanceBattery" (
 
         `voltage = max(nominalVoltage - resistance * max(0, sum(current)), minVoltage)`
 
+    This is BAM's battery law since Rhoban/bam commit `5f9341bd` (July 2026). Earlier versions, and
+    battery resistances fitted with them, estimate the current as the motor current
+    `sum(|torque|) / kt` instead, which drops the voltage more for the same resistance.
+
     The current of an actuator is the current its motor draws from the battery, e.g.
     `duty * current` for `NewtonDCMotorAPI`, since the battery supplies the motor current only
     during the PWM on-time. It is signed: a regenerating actuator returns current and offsets
@@ -2017,6 +2021,10 @@ class NewtonDCMotorClampingAPI "NewtonDCMotorClampingAPI" (
 
     At zero velocity the motor can produce up to `saturationEffort` (capped by `maxMotorEffort`).
     As velocity approaches `velocityLimit`, available effort drops to zero in both directions.
+
+    This clamp models a DC motor by its effort-speed limit only. It must not be combined with a
+    motor (e.g. `NewtonDCMotorAPI`), which models the motor itself including its back-EMF, so the
+    effort-speed limit would be applied a second time. Parsers should raise an error if one is applied.
     """
 )
 {
@@ -2189,6 +2197,10 @@ class NewtonDCMotorAPI "NewtonDCMotorAPI" (
 
     Control laws that output an effort (e.g. `NewtonPDControlAPI`) must not be combined with this
     motor. Parsers should raise an error if one is applied.
+
+    The motor models its back-EMF itself, so it must not be combined with `NewtonDCMotorClampingAPI`,
+    which would apply the effort-speed limit a second time. Parsers should raise an error if both are
+    applied.
 
     The motor provides the supply voltage `V`: `newton:vin`, or the voltage of the battery the
     actuator draws from if that battery provides one (e.g. `NewtonConstantResistanceBattery`).

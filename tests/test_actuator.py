@@ -107,25 +107,50 @@ class TestNewtonConstantResistanceBattery(unittest.TestCase):
         cache = UsdGeom.BBoxCache(Usd.TimeCode.Default(), [UsdGeom.Tokens.default_])
         self.assertTrue(cache.ComputeWorldBound(root).GetRange().IsEmpty())
 
-    def test_attributes(self):
-        for name, fallback, value in (("nominalVoltage", None, 12.0), ("resistance", 0.0, 0.5), ("minVoltage", 0.0, 9.0)):
-            with self.subTest(name=name):
-                attr = self.prim.GetAttribute(f"newton:{name}")
-                self.assertFalse(attr.HasAuthoredValue())
-                if fallback is None:
-                    self.assertIsNone(attr.Get())
-                else:
-                    self.assertAlmostEqual(attr.Get(), fallback)
+    def test_nominal_voltage(self):
+        attr = self.prim.GetAttribute("newton:nominalVoltage")
+        self.assertFalse(attr.HasAuthoredValue())
+        self.assertIsNone(attr.Get())
 
-                attr.Set(value)
-                self.assertTrue(attr.HasAuthoredValue())
-                self.assertAlmostEqual(attr.Get(), value)
+        self.assertTrue(attr.Set(12.0))
+        self.assertTrue(attr.HasAuthoredValue())
+        self.assertAlmostEqual(attr.Get(), 12.0, places=6)
 
-                if USD_HAS_LIMITS:
-                    hard = attr.GetHardLimits()
-                    self.assertTrue(hard.IsValid())
-                    self.assertAlmostEqual(hard.GetMinimum(), 0.0)
-                    self.assertIsNone(hard.GetMaximum())
+        if USD_HAS_LIMITS:
+            hard = attr.GetHardLimits()
+            self.assertTrue(hard.IsValid())
+            self.assertAlmostEqual(hard.GetMinimum(), 0.0)
+            self.assertIsNone(hard.GetMaximum())
+
+    def test_resistance(self):
+        attr = self.prim.GetAttribute("newton:resistance")
+        self.assertFalse(attr.HasAuthoredValue())
+        self.assertAlmostEqual(attr.Get(), 0.0)
+
+        self.assertTrue(attr.Set(0.5))
+        self.assertTrue(attr.HasAuthoredValue())
+        self.assertAlmostEqual(attr.Get(), 0.5, places=6)
+
+        if USD_HAS_LIMITS:
+            hard = attr.GetHardLimits()
+            self.assertTrue(hard.IsValid())
+            self.assertAlmostEqual(hard.GetMinimum(), 0.0)
+            self.assertIsNone(hard.GetMaximum())
+
+    def test_min_voltage(self):
+        attr = self.prim.GetAttribute("newton:minVoltage")
+        self.assertFalse(attr.HasAuthoredValue())
+        self.assertAlmostEqual(attr.Get(), 0.0)
+
+        self.assertTrue(attr.Set(9.0))
+        self.assertTrue(attr.HasAuthoredValue())
+        self.assertAlmostEqual(attr.Get(), 9.0, places=6)
+
+        if USD_HAS_LIMITS:
+            hard = attr.GetHardLimits()
+            self.assertTrue(hard.IsValid())
+            self.assertAlmostEqual(hard.GetMinimum(), 0.0)
+            self.assertIsNone(hard.GetMaximum())
 
 
 class TestNewtonActuatorInputProcessorBaseAPI(unittest.TestCase):
@@ -440,26 +465,41 @@ class TestNewtonVoltageControlAPI(unittest.TestCase):
         self.assertTrue(self.prim.HasAPI("NewtonVoltageControlAPI"))
         self.assertTrue(self.prim.HasAPI("NewtonActuatorControlBaseAPI"))
 
-    def test_attributes(self):
+    def test_kp(self):
+        self.assertFalse(self.prim.HasAttribute("newton:kp"))
+
         self.prim.ApplyAPI("NewtonVoltageControlAPI")
-        for name, fallback, value in (("kp", 0.0, 32.0), ("errorGain", 1.0, 0.015625)):
-            with self.subTest(name=name):
-                attr = self.prim.GetAttribute(f"newton:{name}")
-                self.assertFalse(attr.HasAuthoredValue())
-                if fallback is None:
-                    self.assertIsNone(attr.Get())
-                else:
-                    self.assertAlmostEqual(attr.Get(), fallback)
+        attr = self.prim.GetAttribute("newton:kp")
+        self.assertFalse(attr.HasAuthoredValue())
+        self.assertAlmostEqual(attr.Get(), 0.0)
 
-                attr.Set(value)
-                self.assertTrue(attr.HasAuthoredValue())
-                self.assertAlmostEqual(attr.Get(), value, places=6)
+        self.assertTrue(attr.Set(32.0))
+        self.assertTrue(attr.HasAuthoredValue())
+        self.assertAlmostEqual(attr.Get(), 32.0, places=6)
 
-                if USD_HAS_LIMITS:
-                    hard = attr.GetHardLimits()
-                    self.assertTrue(hard.IsValid())
-                    self.assertAlmostEqual(hard.GetMinimum(), 0.0)
-                    self.assertIsNone(hard.GetMaximum())
+        if USD_HAS_LIMITS:
+            hard = attr.GetHardLimits()
+            self.assertTrue(hard.IsValid())
+            self.assertAlmostEqual(hard.GetMinimum(), 0.0)
+            self.assertIsNone(hard.GetMaximum())
+
+    def test_error_gain(self):
+        self.assertFalse(self.prim.HasAttribute("newton:errorGain"))
+
+        self.prim.ApplyAPI("NewtonVoltageControlAPI")
+        attr = self.prim.GetAttribute("newton:errorGain")
+        self.assertFalse(attr.HasAuthoredValue())
+        self.assertAlmostEqual(attr.Get(), 1.0)
+
+        self.assertTrue(attr.Set(0.015625))
+        self.assertTrue(attr.HasAuthoredValue())
+        self.assertAlmostEqual(attr.Get(), 0.015625, places=6)
+
+        if USD_HAS_LIMITS:
+            hard = attr.GetHardLimits()
+            self.assertTrue(hard.IsValid())
+            self.assertAlmostEqual(hard.GetMinimum(), 0.0)
+            self.assertIsNone(hard.GetMaximum())
 
     def test_api_limitations(self):
         xform = self.stage.DefinePrim("/NotActuator", "Xform")
@@ -685,26 +725,41 @@ class TestNewtonCurrentPWMClampingAPI(unittest.TestCase):
         self.assertTrue(self.prim.HasAPI("NewtonActuatorCommandClampingBaseAPI"))
         self.assertFalse(self.prim.HasAPI("NewtonActuatorClampingBaseAPI"))
 
-    def test_attributes(self):
+    def test_max_current(self):
+        self.assertFalse(self.prim.HasAttribute("newton:maxCurrent"))
+
         self.prim.ApplyAPI("NewtonCurrentPWMClampingAPI")
-        for name, fallback, value, maximum in (("maxCurrent", 0.0, 1.5, None), ("maxPwm", 1.0, 0.9, 1.0)):
-            with self.subTest(name=name):
-                attr = self.prim.GetAttribute(f"newton:{name}")
-                self.assertFalse(attr.HasAuthoredValue())
-                self.assertAlmostEqual(attr.Get(), fallback)
+        attr = self.prim.GetAttribute("newton:maxCurrent")
+        self.assertFalse(attr.HasAuthoredValue())
+        self.assertAlmostEqual(attr.Get(), 0.0)
 
-                attr.Set(value)
-                self.assertTrue(attr.HasAuthoredValue())
-                self.assertAlmostEqual(attr.Get(), value, places=6)
+        self.assertTrue(attr.Set(1.5))
+        self.assertTrue(attr.HasAuthoredValue())
+        self.assertAlmostEqual(attr.Get(), 1.5, places=6)
 
-                if USD_HAS_LIMITS:
-                    hard = attr.GetHardLimits()
-                    self.assertTrue(hard.IsValid())
-                    self.assertAlmostEqual(hard.GetMinimum(), 0.0)
-                    if maximum is None:
-                        self.assertIsNone(hard.GetMaximum())
-                    else:
-                        self.assertAlmostEqual(hard.GetMaximum(), maximum)
+        if USD_HAS_LIMITS:
+            hard = attr.GetHardLimits()
+            self.assertTrue(hard.IsValid())
+            self.assertAlmostEqual(hard.GetMinimum(), 0.0)
+            self.assertIsNone(hard.GetMaximum())
+
+    def test_max_pwm(self):
+        self.assertFalse(self.prim.HasAttribute("newton:maxPwm"))
+
+        self.prim.ApplyAPI("NewtonCurrentPWMClampingAPI")
+        attr = self.prim.GetAttribute("newton:maxPwm")
+        self.assertFalse(attr.HasAuthoredValue())
+        self.assertAlmostEqual(attr.Get(), 1.0)
+
+        self.assertTrue(attr.Set(0.9))
+        self.assertTrue(attr.HasAuthoredValue())
+        self.assertAlmostEqual(attr.Get(), 0.9, places=6)
+
+        if USD_HAS_LIMITS:
+            hard = attr.GetHardLimits()
+            self.assertTrue(hard.IsValid())
+            self.assertAlmostEqual(hard.GetMinimum(), 0.0)
+            self.assertAlmostEqual(hard.GetMaximum(), 1.0)
 
     def test_api_limitations(self):
         xform = self.stage.DefinePrim("/NotActuator", "Xform")
@@ -754,23 +809,59 @@ class TestNewtonDCMotorAPI(unittest.TestCase):
         for name in ("maxPwm", "maxCurrent"):
             self.assertFalse(self.prim.HasAttribute(f"newton:{name}"), name)
 
-    def test_attributes(self):
+    def test_kt(self):
+        self.assertFalse(self.prim.HasAttribute("newton:kt"))
+
         self.prim.ApplyAPI("NewtonDCMotorAPI")
-        for name, value in (("kt", 0.6), ("resistance", 2.0), ("vin", 12.0)):
-            with self.subTest(name=name):
-                attr = self.prim.GetAttribute(f"newton:{name}")
-                self.assertFalse(attr.HasAuthoredValue())
-                self.assertIsNone(attr.Get())
+        attr = self.prim.GetAttribute("newton:kt")
+        self.assertFalse(attr.HasAuthoredValue())
+        self.assertIsNone(attr.Get())
 
-                attr.Set(value)
-                self.assertTrue(attr.HasAuthoredValue())
-                self.assertAlmostEqual(attr.Get(), value, places=6)
+        self.assertTrue(attr.Set(0.6))
+        self.assertTrue(attr.HasAuthoredValue())
+        self.assertAlmostEqual(attr.Get(), 0.6, places=6)
 
-                if USD_HAS_LIMITS:
-                    hard = attr.GetHardLimits()
-                    self.assertTrue(hard.IsValid())
-                    self.assertAlmostEqual(hard.GetMinimum(), 0.0)
-                    self.assertIsNone(hard.GetMaximum())
+        if USD_HAS_LIMITS:
+            hard = attr.GetHardLimits()
+            self.assertTrue(hard.IsValid())
+            self.assertAlmostEqual(hard.GetMinimum(), 0.0)
+            self.assertIsNone(hard.GetMaximum())
+
+    def test_resistance(self):
+        self.assertFalse(self.prim.HasAttribute("newton:resistance"))
+
+        self.prim.ApplyAPI("NewtonDCMotorAPI")
+        attr = self.prim.GetAttribute("newton:resistance")
+        self.assertFalse(attr.HasAuthoredValue())
+        self.assertIsNone(attr.Get())
+
+        self.assertTrue(attr.Set(2.0))
+        self.assertTrue(attr.HasAuthoredValue())
+        self.assertAlmostEqual(attr.Get(), 2.0, places=6)
+
+        if USD_HAS_LIMITS:
+            hard = attr.GetHardLimits()
+            self.assertTrue(hard.IsValid())
+            self.assertAlmostEqual(hard.GetMinimum(), 0.0)
+            self.assertIsNone(hard.GetMaximum())
+
+    def test_vin(self):
+        self.assertFalse(self.prim.HasAttribute("newton:vin"))
+
+        self.prim.ApplyAPI("NewtonDCMotorAPI")
+        attr = self.prim.GetAttribute("newton:vin")
+        self.assertFalse(attr.HasAuthoredValue())
+        self.assertIsNone(attr.Get())
+
+        self.assertTrue(attr.Set(12.0))
+        self.assertTrue(attr.HasAuthoredValue())
+        self.assertAlmostEqual(attr.Get(), 12.0, places=6)
+
+        if USD_HAS_LIMITS:
+            hard = attr.GetHardLimits()
+            self.assertTrue(hard.IsValid())
+            self.assertAlmostEqual(hard.GetMinimum(), 0.0)
+            self.assertIsNone(hard.GetMaximum())
 
     def test_api_limitations(self):
         xform = self.stage.DefinePrim("/NotActuator", "Xform")
